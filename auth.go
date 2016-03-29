@@ -5,6 +5,7 @@ import (
   "fmt"
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
+  "golang.org/x/crypto/bcrypt"
 )
 
 type database struct {
@@ -61,11 +62,12 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
       //if not, tell them they failed
 
     var id int
-    rows, err := db.con.Query("select id from users where username = ? and password = ?", 
-      r.FormValue("usernameLI"), r.FormValue("passwordLI"))
-    
-    fmt.Printf("username = %s AND password = %s", r.FormValue("usernameLI"), r.FormValue("passwordLI"))
-
+    var hashedPass []byte
+    username := r.FormValue("usernameLI")
+    password := r.FormValue("passwordLI")
+    rows, err := db.con.Query("select id, password from users where username = ?", 
+      username)
+  
     if err != nil {
       fmt.Println("error! 14")
     }
@@ -73,7 +75,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
     defer rows.Close()
     for rows.Next() {
       fmt.Println("flag 12")
-      err := rows.Scan(&id)
+      err := rows.Scan(&id, &hashedPass)
       if err != nil {
         fmt.Println("error! 15")
       }
@@ -82,8 +84,8 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
     if err != nil {
       fmt.Println("error! 16")
     }
-    if id != 0 {
-      fmt.Println("user exists")
+    if bcrypt.CompareHashAndPassword(hashedPass, []byte(password)) == nil {
+      fmt.Printf("user exists: %d\n", id)
       //TODO: user exists stuff (JWT ?)
     } else {
       fmt.Println("user does not exist")
@@ -93,38 +95,42 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
   } else if path == "/signup" {
     //signup stuff
+    username := r.FormValue("usernameSU")
+    password := r.FormValue("passwordSU")
+    rows, err := db.con.Query("select id from users where username = ?", username)
+    
+    if err != nil {
+      fmt.Println("error! 114")
+    }
+
+    defer rows.Close()
+    for rows.Next() {
+      // USERNAME TAKEN
+      fmt.Fprint(w, "username taken")
+      return
+    }
+    
+    // USERNAME NOT TAKEN
+
+    hashedPass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+    if err != nil {
+      fmt.Println("error hashing password")
+    }
+
     stmt, err := db.con.Prepare("INSERT INTO users(username, password) VALUES (?, ?)")
     if err != nil {
       fmt.Printf("error preparing thing %v", err)
     }
-    _, err = stmt.Exec(r.FormValue("usernameSU"), r.FormValue("passwordSU"))
+    _, err = stmt.Exec(username, hashedPass)
     if err != nil {
-      //this currently fires when the username is already taken -- maybe we should do a lookup first to verify
-      //the username is available.  Currently I can't tell the difference between "the execution failed" and 
-      //"username taken"
       fmt.Println("error executing thing")
-      //when user is rejected, should get some feedback and no redirection.
-      //should likely be using AJAX request here
     }
     //need to do something when a user is authenticated via signup -- JWT and redirect?
+    http.Redirect(w, r, "/", 301)
+    
   }
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
   
 }
-
-// func dbInit () {
-//   db, err := sql.Open("mysql", "root:rodam@tcp(127.0.0.1:5587)/users")
-//   if err != nil {
-//     fmt.Println("error connecting to db")
-//     return
-//   }
-//   dbCon(db)
-// }
-
-// func dbCon (db... *sql.DB) {
-//   if len(db) == 1 {
-
-//   }
-// }
