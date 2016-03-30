@@ -6,13 +6,15 @@ import (
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
   "golang.org/x/crypto/bcrypt"
+  "github.com/dgrijalva/jwt-go"
+  "time"
 )
 
 type database struct {
   con *sql.DB
 }
 
-// user:password@/dbname
+// initializes the database connection
 func (d *database) dbInit() {
   // db, err := sql.Open("mysql", "root:rodam@tcp(127.0.0.1:5587)/gopractice")
   dbConnection, err := sql.Open("mysql", "root:rodam@/gopractice")
@@ -23,6 +25,7 @@ func (d *database) dbInit() {
   d.con = dbConnection
 }
 
+//create a global db struct for anyone to use
 var db database
 
 func main () {
@@ -36,14 +39,6 @@ func main () {
 
 func reqHandler (w http.ResponseWriter, r *http.Request) {
   fmt.Printf("Receiving %v request from %v\n", r.Method, r.URL)
-  // stmt, err := db.con.Prepare("INSERT INTO users(username) VALUES(?)")
-  // if err != nil {
-  //   fmt.Printf("error preparing thing %v", err)
-  // }
-  // _, err = stmt.Exec("Dolly")
-  // if err != nil {
-  //   fmt.Println("error executing thing")
-  // }
 
   if r.Method == "POST" {
     postHandler(w, r)
@@ -53,84 +48,98 @@ func reqHandler (w http.ResponseWriter, r *http.Request) {
 
 }
 
-func postHandler(w http.ResponseWriter, r *http.Request) {
-  path := r.URL.Path
-  if path == "/login" {
-    //login stuff:
-    //check if user + pw is in DB
-      //if so, make them a JWT...
-      //if not, tell them they failed
+func errorHandler(task string, err error) {
+  fmt.Printf("Got an error trying to %s: %v\n", task, err)
+}
 
-    var id int
-    var hashedPass []byte
-    username := r.FormValue("usernameLI")
-    password := r.FormValue("passwordLI")
-    rows, err := db.con.Query("select id, password from users where username = ?", 
-      username)
-  
-    if err != nil {
-      fmt.Println("error! 14")
-    }
+func login(w http.ResponseWriter, r *http.Request) {
+  var id int64
+  var hashedPass []byte
+  username := r.FormValue("usernameLI")
+  password := r.FormValue("passwordLI")
+  rows, err := db.con.Query("select id, password from users where username = ?", 
+    username)
 
-    defer rows.Close()
-    for rows.Next() {
-      fmt.Println("flag 12")
-      err := rows.Scan(&id, &hashedPass)
-      if err != nil {
-        fmt.Println("error! 15")
-      }
-    }
-    err = rows.Err()
-    if err != nil {
-      fmt.Println("error! 16")
-    }
-    if bcrypt.CompareHashAndPassword(hashedPass, []byte(password)) == nil {
-      fmt.Printf("user exists: %d\n", id)
-      //TODO: user exists stuff (JWT ?)
-    } else {
-      fmt.Println("user does not exist")
-      //TODO: user does not exist stuff (error msg ?)
-      //should I be using AJAX here for the POST instead of non AJAX HTTP?
-    }
+  if err != nil {
+    errorHandler("querying DB", err)
+  }
 
-  } else if path == "/signup" {
-    //signup stuff
-    username := r.FormValue("usernameSU")
-    password := r.FormValue("passwordSU")
-    rows, err := db.con.Query("select id from users where username = ?", username)
-    
+  defer rows.Close()
+  for rows.Next() {
+    err := rows.Scan(&id, &hashedPass)
     if err != nil {
-      fmt.Println("error! 114")
+      errorHandler("scanning rows", err)
     }
-
-    defer rows.Close()
-    for rows.Next() {
-      // USERNAME TAKEN
-      fmt.Fprint(w, "username taken")
-      return
-    }
-    
-    // USERNAME NOT TAKEN
-
-    hashedPass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-    if err != nil {
-      fmt.Println("error hashing password")
-    }
-
-    stmt, err := db.con.Prepare("INSERT INTO users(username, password) VALUES (?, ?)")
-    if err != nil {
-      fmt.Printf("error preparing thing %v", err)
-    }
-    _, err = stmt.Exec(username, hashedPass)
-    if err != nil {
-      fmt.Println("error executing thing")
-    }
-    //need to do something when a user is authenticated via signup -- JWT and redirect?
-    http.Redirect(w, r, "/", 301)
-    
+  }
+  err = rows.Err()
+  if err != nil {
+    errorHandler("scanned rows are messed up", err)
+  }
+  if bcrypt.CompareHashAndPassword(hashedPass, []byte(password)) == nil {
+    jwt := createJWT(id)
+    sendJWT(w, jwt)
+  } else {
+    fmt.Println("user does not exist")
   }
 }
 
-func getHandler(w http.ResponseWriter, r *http.Request) {
+func signup (w http.ResponseWriter, r *http.Request) {
+  username := r.FormValue("usernameSU")
+  password := r.FormValue("passwordSU")
+  rows, err := db.con.Query("select id from users where username = ?", username)
   
+  if err != nil {
+    errorHandler("querying DB", err)
+  }
+
+  defer rows.Close()
+  for rows.Next() {
+    return
+  }
+  
+  hashedPass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+  if err != nil {
+    errorHandler("generating hash", err)
+  }
+
+  stmt, err := db.con.Prepare("INSERT INTO users(username, password) VALUES (?, ?)")
+  if err != nil {
+    errorHandler("preparing to write to DB", err)
+  }
+  user, err := stmt.Exec(username, hashedPass)
+  if err != nil {
+    errorHandler("writing to DB", err)
+  }
+  insertId, _ := user.LastInsertId()
+  jwt := createJWT(insertId)
+  sendJWT(w, jwt)
+}
+
+func sendJWT (w http.ResponseWriter, jwt string) {
+  c := http.Cookie{Name: "adamJWT", Value: jwt, MaxAge: 0, HttpOnly: true}
+  http.SetCookie(w, &c)
+  w.Write([]byte("Successful login!"))
+}
+
+func postHandler(w http.ResponseWriter, r *http.Request) {
+  path := r.URL.Path
+  if path == "/login" {
+    login(w, r)
+  } else if path == "/signup" {
+    signup(w, r)
+  }
+}
+
+func createJWT(userId int64) string {
+  token := jwt.New(jwt.SigningMethodHS256)
+  token.Claims["userId"] = userId
+  token.Claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
+  tokenString, err := token.SignedString([]byte("REPLACE_WITH_A_SECRET"))
+  if err != nil {
+    errorHandler("signing token", err)
+  }
+  return tokenString
+}
+
+func getHandler(w http.ResponseWriter, r *http.Request) {
 }
