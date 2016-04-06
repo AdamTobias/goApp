@@ -3,30 +3,20 @@ package main
 import (
   "net/http"
   "io/ioutil"
-  // "strings"
-  // "net/url"
-  // "strconv"
   "fmt"
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
-  // "golang.org/x/crypto/bcrypt"
-  // "/Users/Adam/HIR/gocode/src/github.com/dgrijalva/jwt-go"
-  // "time"
   "encoding/json"
-  "github.com/db-docker/myDB"
+  "github.com/db-docker/common"
   "github.com/db-docker/models"
 )
 
-type User struct {
-  Id string
-  Username string
-  Password string
-}
+
 
 // initializes the database connection
 func dbInit() {
   var err error
-  myDB.DBCon, err = sql.Open("mysql", "root:rodam@/gopractice")
+  common.DBCon, err = sql.Open("mysql", "root:rodam@/gopractice")
   if err != nil {
     fmt.Println("error connecting to db", err)
     return
@@ -39,7 +29,7 @@ func main () {
   http.HandleFunc("/", reqHandler)
   fmt.Println("Listening on 8000")
   dbInit()
-  defer myDB.DBCon.Close()
+  defer common.DBCon.Close()
   http.ListenAndServe(":8000", nil)
 }
 
@@ -65,14 +55,19 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
     errorHandler("reading request body", err)
   }
 
-  if r.URL.Path[1:] == "user" {
-    var newUser User
+  if r.URL.Path[1:] == "users" {
+    var newUser common.User
     err := json.Unmarshal(body, &newUser)
     if err != nil {
       fmt.Println("Error unmarshalling body", err)
     }
-    id := users.AddUser(newUser.Username, newUser.Password)
-    w.Write(id)
+    existingUser := users.GetUser(newUser.Username)
+    if existingUser.Username != "" {
+      fmt.Println("user already exists ", existingUser.Username)
+    } else {
+      id := users.AddUser(newUser.Username, newUser.Password)
+      w.Write(id)
+    }
   }
 }
 

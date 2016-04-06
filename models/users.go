@@ -1,28 +1,15 @@
 package users
 
 import (
-  // "strings"
-  // "net/url"
-  "github.com/db-docker/myDB"
+  "github.com/db-docker/common"
   "strconv"
   "fmt"
-  // "database/sql"
-  // "github.com/go-sql-driver/mysql"
-  // "golang.org/x/crypto/bcrypt"
-  // "github.com/dgrijalva/jwt-go"
-  // "time"
 )
 
-type User struct {
-  Id string
-  Username string
-  Password string
-}
-
-func GetUser(username string) User {
-  var retrievedUser User;
+func GetUser(username string) common.User {
+  var retrievedUser common.User;
   queryString := "SELECT id, username, password FROM users WHERE username = ?"
-  rows, err := myDB.DBCon.Query(queryString, username)
+  rows, err := common.DBCon.Query(queryString, username)
   
   if err != nil {
     fmt.Println("querying DB", err)
@@ -35,24 +22,16 @@ func GetUser(username string) User {
       fmt.Println("scanning rows", err)
     }
   }
-
   return retrievedUser;
 }
 
 func AddUser (username string, password string) []byte {
-  stmt, err := myDB.DBCon.Prepare("INSERT INTO users(username, password) VALUES (?, ?)")
+  stmt, err := common.DBCon.Prepare("INSERT INTO users(username, password) VALUES (?, ?)")
   if err != nil {
     fmt.Println("preparing to write to DB", err)
   }
   user, err := stmt.Exec(username, password)
   if err != nil {
-    // if mysqlError, ok := err.(*mysql.MySQLError); ok {
-    //   if mysqlError.Number == 1062 {
-    //     return nil
-    //   } else {
-    //     fmt.Println("error writing to DB", err)
-    //   }
-    // }
     fmt.Println("error writing to DB", err)
   }
   insertId, _ := user.LastInsertId()

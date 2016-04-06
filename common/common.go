@@ -1,4 +1,4 @@
-package myDB
+package common
 
 import "database/sql"
 
@@ -7,3 +7,9 @@ var (
     // for the database
     DBCon *sql.DB
 )
+
+type User struct {
+  Id string
+  Username string
+  Password string
+}
