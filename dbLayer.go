@@ -2,42 +2,44 @@ package main
 
 import (
   "net/http"
+  "io/ioutil"
   // "strings"
   // "net/url"
-  "strconv"
+  // "strconv"
   "fmt"
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
   // "golang.org/x/crypto/bcrypt"
-  // "github.com/dgrijalva/jwt-go"
+  // "/Users/Adam/HIR/gocode/src/github.com/dgrijalva/jwt-go"
   // "time"
   "encoding/json"
+  "github.com/db-docker/myDB"
+  "github.com/db-docker/models"
 )
 
-type database struct {
-  con *sql.DB
+type User struct {
+  Id string
+  Username string
+  Password string
 }
 
 // initializes the database connection
-func (d *database) dbInit() {
-  // db, err := sql.Open("mysql", "root:rodam@tcp(127.0.0.1:5587)/gopractice")
-  dbConnection, err := sql.Open("mysql", "root:rodam@/gopractice")
+func dbInit() {
+  var err error
+  myDB.DBCon, err = sql.Open("mysql", "root:rodam@/gopractice")
   if err != nil {
-    fmt.Println("error connecting to db")
+    fmt.Println("error connecting to db", err)
     return
   }
   fmt.Println("Database connection established")
-  d.con = dbConnection
 }
 
-//create a global db struct for anyone to use
-var db database
 
 func main () {
   http.HandleFunc("/", reqHandler)
   fmt.Println("Listening on 8000")
-  db.dbInit()
-  defer db.con.Close()
+  dbInit()
+  defer myDB.DBCon.Close()
   http.ListenAndServe(":8000", nil)
 }
 
@@ -57,43 +59,38 @@ func errorHandler(task string, err error) {
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
+  defer r.Body.Close()   
+  body, err := ioutil.ReadAll(r.Body)
+  if err != nil {
+    errorHandler("reading request body", err)
+  }
+
+  if r.URL.Path[1:] == "user" {
+    var newUser User
+    err := json.Unmarshal(body, &newUser)
+    if err != nil {
+      fmt.Println("Error unmarshalling body", err)
+    }
+    id := users.AddUser(newUser.Username, newUser.Password)
+    w.Write(id)
+  }
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
   if r.URL.Path[1:] == "users" {
-    getUser(w, r)
-  }
-}
-
-func getUser (w http.ResponseWriter, r *http.Request) {
-  queries := r.URL.Query()
-  queryString := "SELECT id, password FROM users WHERE username = ?"
-  if queries["username"] == nil {
-    w.Write([]byte("Query incorrectly specified"))
-    return
-  }
-
-  rows, err := db.con.Query(queryString, queries["username"][0])
-  
-  if err != nil {
-    fmt.Println("querying DB", err)
-  }
-
-  defer rows.Close()
-  for rows.Next() {
-    var id int
-    var password string
-    err := rows.Scan(&id, &password)
-    if err != nil {
-      fmt.Println("scanning rows", err)
-      w.Write([]byte("Error reading DB"))
+    queries := r.URL.Query()
+    if queries["username"] == nil {
+      w.Write([]byte("Query incorrectly specified"))
+      return
     }
-    w.Header().Set("Content-Type", "application/json")
-    response, err := json.Marshal(map[string]string{"id": strconv.Itoa(id), "password": password})
+    user := users.GetUser(queries["username"][0])
+
+    response, err := json.Marshal(user)
     if err != nil {
       fmt.Println("error marshalling the json ", err)
     }
+    fmt.Println("response is", response)
+    w.Header().Set("Content-Type", "application/json")
     w.Write(response)
   }
-  w.Write([]byte("No user found"))
 }
