@@ -1,7 +1,7 @@
 package users
 
 import (
-  "github.com/db-docker/common"
+  "github.com/adamtobias/goApp/db/common"
   "strconv"
   "fmt"
 )

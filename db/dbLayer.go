@@ -7,8 +7,8 @@ import (
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
   "encoding/json"
-  "github.com/db-docker/common"
-  "github.com/db-docker/models"
+  "github.com/adamtobias/goApp/db/common"
+  "github.com/adamtobias/goApp/db/models"
 )
 
 
@@ -84,7 +84,6 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
     if err != nil {
       fmt.Println("error marshalling the json ", err)
     }
-    fmt.Println("response is", response)
     w.Header().Set("Content-Type", "application/json")
     w.Write(response)
   }
