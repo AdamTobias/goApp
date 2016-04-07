@@ -9,14 +9,24 @@ import (
   "encoding/json"
   "github.com/adamtobias/goApp/db/common"
   "github.com/adamtobias/goApp/db/models"
+  "os"
 )
 
 
 
 // initializes the database connection
 func dbInit() {
+  var dbLocation string
+  if env, _ := os.LookupEnv("env"); env == "docker" {
+    dbLocation = "root:rodam@tcp(192.168.99.100:3306)/gopractice"
+    fmt.Println("env =", env)
+  } else {
+    dbLocation = "root:rodam@tcp/gopractice"
+    fmt.Println("env = ", env)
+  }
+
   var err error
-  common.DBCon, err = sql.Open("mysql", "root:rodam@tcp(192.168.99.100:3306)/gopractice")
+  common.DBCon, err = sql.Open("mysql", dbLocation)
   if err != nil {
     fmt.Println("error connecting to db", err)
     return
