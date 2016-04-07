@@ -16,7 +16,7 @@ import (
 // initializes the database connection
 func dbInit() {
   var err error
-  common.DBCon, err = sql.Open("mysql", "root:rodam@/gopractice")
+  common.DBCon, err = sql.Open("mysql", "root:rodam@tcp(192.168.99.100:3306)/gopractice")
   if err != nil {
     fmt.Println("error connecting to db", err)
     return
