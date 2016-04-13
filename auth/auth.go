@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
   "net/http"
@@ -9,6 +9,7 @@ import (
   "io/ioutil"
   "encoding/json"
   "bytes"
+  "os"
 )
 
 type User struct {
@@ -17,7 +18,23 @@ type User struct {
   Password string
 }
 
+var dbURL = "http://localhost:8000"
+
 func main () {
+  envKey := "DB_NAME"
+  envVal, _ := os.LookupEnv(envKey) 
+  fmt.Println(envKey, envVal)
+  envKey = "DB_PORT"
+  envVal, _ = os.LookupEnv(envKey)
+  fmt.Println(envKey, envVal)
+  if env, _ := os.LookupEnv("env"); env == "docker" {
+    dbURL = "HTTP" + envVal[3:]
+    fmt.Println("env =", env)
+  } else {
+    dbURL = "http://localhost:8000"
+    fmt.Println("env = ", env)
+  }
+
   http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
   http.HandleFunc("/", reqHandler)
   fmt.Println("Listening on 8080")
@@ -45,9 +62,8 @@ func login(w http.ResponseWriter, r *http.Request) {
   username := r.FormValue("usernameLI")
   password := r.FormValue("passwordLI")
 
-  url := "http://localhost:8000/users?username=" + username
-  resp, err := http.Get(url)
-  errorHandler("making GET request to " + url, err)
+  resp, err := http.Get(dbURL + "/users?username=" + username)
+  errorHandler("making GET request", err)
   
   defer resp.Body.Close()   
   body, err2 := ioutil.ReadAll(resp.Body)
@@ -78,10 +94,8 @@ func signup (w http.ResponseWriter, r *http.Request) {
   body, err := json.Marshal(map[string]string{"Username":username, "Password":string(hashedPass)})
   errorHandler("Marshaling body", err)
 
-  url := "http://localhost:8000/users"
-  resp, err := http.Post(url, "application/json", bytes.NewReader(body))
-  errorHandler("making POST request to " + url, err)
-  //make HTTP request to the DBLayer to attempt to add the user
+  resp, err := http.Post(dbURL + "/users", "application/json", bytes.NewReader(body))
+  errorHandler("making POST request", err)
 
   defer resp.Body.Close()   
   insertId, err2 := ioutil.ReadAll(resp.Body)

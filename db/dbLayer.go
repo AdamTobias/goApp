@@ -16,9 +16,15 @@ import (
 
 // initializes the database connection
 func dbInit() {
+  envKey := "DB_NAME"
+  envVal, _ := os.LookupEnv(envKey) 
+  fmt.Println(envKey, envVal)
+  envKey = "DB_PORT"
+  envVal, _ = os.LookupEnv(envKey)
+  fmt.Println(envKey, envVal)
   var dbLocation string
   if env, _ := os.LookupEnv("env"); env == "docker" {
-    dbLocation = "root:rodam@tcp(192.168.99.100:3306)/gopractice"
+    dbLocation = "root:rodam@tcp(" + envVal[6:] + ")/gopractice"
     fmt.Println("env =", env)
   } else {
     dbLocation = "root:rodam@tcp/gopractice"
