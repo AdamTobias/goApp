@@ -6,7 +6,7 @@ import(
   "net/http/httptest"
   "testing"
   "fmt"
-  // "strings"
+  "io/ioutil"
   "net/url"
   "encoding/json"
   "os"
@@ -45,7 +45,23 @@ func TestMain(m *testing.M) {
       w.Header().Set("Content-Type", "application/json")
       w.Write(response)
     } else if r.Method == "POST" && r.URL.Path[1:] == "users" {
-      
+      var returnedId string
+      defer r.Body.Close()   
+      body, err := ioutil.ReadAll(r.Body)
+      if err != nil {
+        errorHandler("reading request body", err)
+      }
+      var newUser User
+      err = json.Unmarshal(body, &newUser)
+      if err != nil {
+        fmt.Println("Error unmarshalling body", err)
+      }
+      if newUser.Username == "shouldPass" {
+        returnedId = "3"
+      } else if newUser.Username == "shouldFail" {
+        returnedId = ""
+      }
+      w.Write([]byte(returnedId))
     }
   }))
   defer ts.Close()
@@ -56,11 +72,11 @@ func TestMain(m *testing.M) {
 
 func TestLogin(t *testing.T) {  
   if submitUser("shouldPass", "correctPassword", "login") != http.StatusOK {
-    t.Errorf("Incorrect password   didn't return %v", http.StatusUnauthorized)
+    t.Errorf("Correct login didn't return %v", http.StatusUnauthorized)
   }
 
   if submitUser("shouldFail", "incorrectPassword", "login") != http.StatusUnauthorized {
-    t.Errorf("Incorrect password   didn't return %v", http.StatusUnauthorized)
+    t.Errorf("Incorrect password didn't return %v", http.StatusUnauthorized)
   }
 
   if submitUser("DNE", "irrelevant", "login") != http.StatusUnauthorized {
@@ -69,8 +85,10 @@ func TestLogin(t *testing.T) {
 }
 
 func TestSignup(t * testing.T) {
-  if submitUser("shouldPass", "correctPassword", "login") != http.StatusOK {
-    t.Errorf("Incorrect password   didn't return %v", http.StatusUnauthorized)
+  if submitUser("shouldPass", "irrelevant", "signup") != http.StatusOK {
+    t.Errorf("Valid signup didn't return %v", http.StatusOK)
+  } else if submitUser("shouldFail", "irrelevant", "signup") != http.StatusBadRequest {
+    t.Errorf("Invalid signup didn't return %v", http.StatusBadRequest)
   }
 }
 

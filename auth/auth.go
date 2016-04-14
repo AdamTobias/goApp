@@ -107,6 +107,7 @@ func signup (w http.ResponseWriter, r *http.Request) {
     jwt := createJWT(id)
     sendJWT(w, jwt) 
   } else {
+    w.WriteHeader(http.StatusBadRequest)
     w.Write([]byte("username taken mate"))
   }
 }
