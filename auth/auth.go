@@ -1,4 +1,4 @@
-package auth
+package main
 
 import (
   "net/http"
@@ -79,7 +79,8 @@ func login(w http.ResponseWriter, r *http.Request) {
       sendJWT(w, jwt)
       return
     } 
-  } 
+  }
+  w.WriteHeader(http.StatusUnauthorized)
   w.Write([]byte("wrong bloke, mate"))
 
 }
